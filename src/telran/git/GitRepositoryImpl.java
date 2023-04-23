@@ -83,40 +83,28 @@ public class GitRepositoryImpl implements GitRepository {
 		try {
 			res = Files.walk(directory, 1).filter(Files::isRegularFile)
 					.filter(filePath -> !regexMatches(filePath.getFileName().toString()))
-					.map(filePath -> new FileState(filePath, getFileStatus(filePath))).toList();
+					.map(filePath -> new FileState(filePath, getFileStatus(filePath, commits.get(head)))).toList();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 		}
 		return res;
 	}
 
-	private Status getFileStatus(Path path) {
-		Commit commit = commits.get(head);		
-		Status res = null;
-		//if (commit == null || !commit.fileParameters().containsKey(path)) {
+	private Status getFileStatus(Path path, Commit commit) {		
+		Status res = null;		
 		if (commit == null) {
 			res = Status.UNTRACKED;
 		} 
-		else if (!commit.fileParameters().containsKey(path)) {
-			//res = Status.UNTRACKED; //TODO search in previous commits
-			res = searchInPrevCommit(path);
+		else if (!commit.fileParameters().containsKey(path)) {				
+			res = getFileStatus(path, commits.get(commit.prevCommitName()));
 		} 
 		else {
 			Instant commitDate = commit.commitTime();
 			res = commitDate.isBefore(fileLastModified(path)) ? Status.MODIFIED : Status.COMMITED;
-
 		}
 		return res;
 	}
-
-	private Status searchInPrevCommit(Path path) {
-		Status res = Status.UNTRACKED;
-		String prevCommitName = commits.get(head).prevCommitName();
-		while (prevCommitName != null) {
-			
-		}
-		return res;
-	}
+	
 
 	private Instant fileLastModified(Path path) {
 		return Instant.ofEpochMilli(path.toFile().lastModified());
@@ -183,7 +171,7 @@ public class GitRepositoryImpl implements GitRepository {
 		try (ObjectOutputStream output = new ObjectOutputStream(new FileOutputStream(GIT_FILE))) {
 			output.writeObject(this);
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 
 	}
