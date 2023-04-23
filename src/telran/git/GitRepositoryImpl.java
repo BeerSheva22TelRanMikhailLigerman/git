@@ -3,8 +3,10 @@ package telran.git;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.regex.PatternSyntaxException;
 
 public class GitRepositoryImpl implements GitRepository {
@@ -36,14 +38,22 @@ public class GitRepositoryImpl implements GitRepository {
 		if (isChanged) {
 			Commit commit = getCommit(commitMessage, fileStates);
 			commits.put(commit.commitMessage().name(), commit);
-			head = commit.commitMessage().name();
-			res = "Commited succefull: " + commit.commitMessage().message() + " comName: " + commit.commitMessage().name();
+			// head = commit.commitMessage().name();
+			res = "Commited succefull: " + commit.commitMessage().message() + " comName: "
+					+ commit.commitMessage().name();
+
+			if (head == null) {
+				head = commit.commitMessage().name();
+				createBranch("master");
+			} else {
+				branches.replace(head, commit.commitMessage().name());
+			}
 		}
 
 		return res;
 	}
 
-	private Commit getCommit(String commitMessage, List<FileState> fileStates) {
+	private Commit getCommit(String commitMessage, List<FileState> fileStates) { // create new commit
 		CommitMessage comMessage = new CommitMessage(commitMessage);
 		Instant comTime = Instant.now();
 		Map<Path, FileParameters> comFileParameters = getFileParameters(fileStates);
@@ -57,9 +67,9 @@ public class GitRepositoryImpl implements GitRepository {
 		for (FileState fileState : fileStates) {
 			if (fileState.status() != Status.COMMITED) {
 				FileParameters fileParameters = new FileParameters(getData(fileState.path()),
-																	fileLastModified(fileState.path()));
+						fileLastModified(fileState.path()));
 				res.put(fileState.path(), fileParameters);
-			}		
+			}
 		}
 
 		return res;
@@ -90,21 +100,18 @@ public class GitRepositoryImpl implements GitRepository {
 		return res;
 	}
 
-	private Status getFileStatus(Path path, Commit commit) {		
-		Status res = null;		
+	private Status getFileStatus(Path path, Commit commit) {
+		Status res = null;
 		if (commit == null) {
 			res = Status.UNTRACKED;
-		} 
-		else if (!commit.fileParameters().containsKey(path)) {				
+		} else if (!commit.fileParameters().containsKey(path)) {
 			res = getFileStatus(path, commits.get(commit.prevCommitName()));
-		} 
-		else {
+		} else {
 			Instant commitDate = commit.commitTime();
 			res = commitDate.isBefore(fileLastModified(path)) ? Status.MODIFIED : Status.COMMITED;
 		}
 		return res;
 	}
-	
 
 	private Instant fileLastModified(Path path) {
 		return Instant.ofEpochMilli(path.toFile().lastModified());
@@ -115,21 +122,65 @@ public class GitRepositoryImpl implements GitRepository {
 	}
 
 	@Override
-	public String createBranch(String branchName) {
-		// TODO Auto-generated method stub
-		return null;
+	public String createBranch(String newBranchName) {
+		String res = null;
+
+		if (commits.isEmpty()) {
+			res = "Must be at least one commit";
+
+		} else if (branches.containsKey(newBranchName)) {
+			res = String.format("Branch  %s already exists", newBranchName);
+		}
+		branches.put(newBranchName, getCurrentCommit(head).commitMessage().name());
+		head = newBranchName;
+		res = String.format("Branch %s has been created", newBranchName);
+
+		return res;
+	}
+
+	private Commit getCurrentCommit(String name) { // return commit by name
+		Commit res = null;
+		if (branches.containsKey(name)) {
+			res = commits.get(branches.get(name));
+		} else {
+			res = commits.get(name);
+		}
+		return res;
 	}
 
 	@Override
-	public String renameBranch(String branchName, String newName) {
-		// TODO Auto-generated method stub
-		return null;
+	public String renameBranch(String branchName, String newBranchName) {
+		String res = null;
+		if (branches.containsKey(newBranchName)) {
+			res = String.format("Branch  %s already exists", newBranchName);
+		}
+		if (!branches.containsKey(branchName)) {
+			res = String.format("Branch  %s  not found", branchName);
+		}
+
+		String commitName = branches.remove(branchName);
+		branches.put(newBranchName, commitName);
+		res = "Renamed successfully";
+
+		if (head == branchName) {
+			head = newBranchName;
+		}
+
+		return res;
 	}
 
 	@Override
 	public String deleteBranch(String branchName) {
-		// TODO Auto-generated method stub
-		return null;
+		String res = null;
+		if (!branches.containsKey(branchName)) {
+			res = "No such branch faund";
+		} else if (head == branchName) {
+			res = "Cann't delete current branch";
+		} else {
+			branches.remove(branchName);
+			res = "Delete successfully";
+		}
+		return res;
 	}
 
 	@Override
@@ -145,19 +196,109 @@ public class GitRepositoryImpl implements GitRepository {
 
 	@Override
 	public List<String> branches() {
-		// TODO Auto-generated method stub
-		return null;
+		List<String> res = null;
+		for (Entry<String, String> pair : branches.entrySet()) {
+			if (pair.getKey() == head) {
+				res.add("* " + pair.getKey());
+			} else {
+				res.add(pair.getKey());
+			}
+		}
+		return res;
 	}
 
 	@Override
-	public List<Path> commitContent(String commitName) {		
+	public List<Path> commitContent(String commitName) {
+
 		return commits.get(commitName).fileParameters().keySet().stream().toList();
 	}
 
 	@Override
 	public String switchTo(String name) {
-		// TODO Auto-generated method stub
-		return null;
+
+		List<FileState> fileStates = info();
+		for (FileState state : fileStates) {
+			if ((state.status() == Status.MODIFIED) || ((state.status() == Status.UNTRACKED))) {
+				return "Need commit first";
+			}
+		}
+
+		clearWorkDir();
+		restoreFiles(name);
+		head = name;
+
+		return "switch successfully";
+	}
+
+	private void restoreFiles(String name) {
+		Commit commit = getCurrentCommit(name);
+		var fileParameters = commit.fileParameters();
+		for (Entry<Path, FileParameters> pair : fileParameters.entrySet()) {
+			Path path = pair.getKey();
+			String[] fileData = pair.getValue().fileData();
+			Instant timeOfModified = pair.getValue().timeLastModified();
+
+			restoreOneFile(path, fileData, timeOfModified);
+
+			commit = getCurrentCommit(commit.prevCommitName());
+		}
+//		while (commit != null) {
+//			 fileParameters = commit.fileParameters();
+//			for (Entry<Path, FileParameters> pair : fileParameters.entrySet()) {
+//				Path path = pair.getKey();
+//				String[] fileData = pair.getValue().fileData();
+//				Instant timeOfModified = pair.getValue().timeLastModified();
+//				//Map<Path, Instant> currentFiles = currentFiles();
+//				if() {
+//				restoreOneFile(path, fileData, timeOfModified);}
+//
+//				commit = getCurrentCommit(commit.prevCommitName());
+//
+//			
+//
+//			commit = getCurrentCommit(commit.prevCommitName());
+//		}
+
+		
+
+	}
+
+//	private Map<Path, Instant> currentFiles() {
+//		HashMap<Path, Instant> res = new HashMap<>();
+//		try {
+//		res = Files.walk(WORK_DIR, 1).filter(Files::isRegularFile)
+//				.filter(filePath -> !regexMatches(filePath.getFileName().toString()))
+//				.map(filePath -> res.put(filePath, fileLastModified(filePath)));
+//	} catch (IOException e) {
+//		// TODO Auto-generated catch block
+//	}
+//	return res;
+//		
+//	}
+
+	private void restoreOneFile(Path path, String[] fileData, Instant timeOfModified) {
+		try {
+			Files.createFile(path);
+			Files.write(path, Arrays.asList(fileData));
+			Files.setLastModifiedTime(path, FileTime.from(timeOfModified));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void clearWorkDir() {
+		try {
+			Files.walk(Path.of(WORK_DIR)).filter(Files::isRegularFile).forEach(file -> {
+				try {
+					Files.delete(file);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+				}
+			});
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+		}
+
 	}
 
 	@Override
