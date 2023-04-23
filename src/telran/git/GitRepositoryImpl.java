@@ -38,7 +38,7 @@ public class GitRepositoryImpl implements GitRepository {
 		if (isChanged) {
 			Commit commit = getCommit(commitMessage, fileStates);
 			commits.put(commit.commitMessage().name(), commit);
-			// head = commit.commitMessage().name();
+			//head = commit.commitMessage().name();
 			res = "Commited succefull: " + commit.commitMessage().message() + " comName: "
 					+ commit.commitMessage().name();
 
@@ -57,7 +57,7 @@ public class GitRepositoryImpl implements GitRepository {
 		CommitMessage comMessage = new CommitMessage(commitMessage);
 		Instant comTime = Instant.now();
 		Map<Path, FileParameters> comFileParameters = getFileParameters(fileStates);
-		String prevCommit = head;
+		String prevCommit = head == null ? null : getCurrentCommit(head).commitMessage().name();
 
 		return new Commit(comMessage, comTime, comFileParameters, prevCommit);
 	}
@@ -93,7 +93,7 @@ public class GitRepositoryImpl implements GitRepository {
 		try {
 			res = Files.walk(directory, 1).filter(Files::isRegularFile)
 					.filter(filePath -> !regexMatches(filePath.getFileName().toString()))
-					.map(filePath -> new FileState(filePath, getFileStatus(filePath, commits.get(head)))).toList();
+					.map(filePath -> new FileState(filePath, getFileStatus(filePath, getCurrentCommit(head)))).toList();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 		}
@@ -140,6 +140,8 @@ public class GitRepositoryImpl implements GitRepository {
 
 	private Commit getCurrentCommit(String name) { // return commit by name
 		Commit res = null;
+		//res = commits.get(name);
+		if (name == null) {return null;}
 		if (branches.containsKey(name)) {
 			res = commits.get(branches.get(name));
 		} else {
@@ -186,7 +188,7 @@ public class GitRepositoryImpl implements GitRepository {
 	@Override
 	public List<CommitMessage> log() {
 		List<CommitMessage> res = new ArrayList<>();
-		Commit commit = commits.get(head);
+		Commit commit = getCurrentCommit(head);
 		while (commit != null) {
 			res.add(commit.commitMessage());
 			commit = commits.get(commit.prevCommitName());
@@ -196,15 +198,7 @@ public class GitRepositoryImpl implements GitRepository {
 
 	@Override
 	public List<String> branches() {
-		List<String> res = null;
-		for (Entry<String, String> pair : branches.entrySet()) {
-			if (pair.getKey() == head) {
-				res.add("* " + pair.getKey());
-			} else {
-				res.add(pair.getKey());
-			}
-		}
-		return res;
+		return branches.keySet().stream().map(name -> name == head ? name + " *": name).toList();
 	}
 
 	@Override
@@ -240,7 +234,9 @@ public class GitRepositoryImpl implements GitRepository {
 
 			restoreOneFile(path, fileData, timeOfModified);
 
-			commit = getCurrentCommit(commit.prevCommitName());
+			if (commit.prevCommitName() != null) {
+				commit = getCurrentCommit(commit.prevCommitName());
+			}
 		}
 //		while (commit != null) {
 //			 fileParameters = commit.fileParameters();
@@ -258,8 +254,6 @@ public class GitRepositoryImpl implements GitRepository {
 //
 //			commit = getCurrentCommit(commit.prevCommitName());
 //		}
-
-		
 
 	}
 
@@ -329,7 +323,7 @@ public class GitRepositoryImpl implements GitRepository {
 		return String.format("Ignored Expression %s was added", regex);
 	}
 
-	// try to load saved repository or create new empty repository
+	
 	public static GitRepositoryImpl init() {
 		File file = new File(GIT_FILE);
 		GitRepositoryImpl repository = new GitRepositoryImpl();
