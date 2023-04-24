@@ -1,5 +1,7 @@
 package telran.git;
 
-public enum Status {
+import java.io.Serializable;
+
+public enum Status implements Serializable{
 	UNTRACKED, MODIFIED, COMMITED;
 }

@@ -38,7 +38,7 @@ public class GitRepositoryImpl implements GitRepository {
 		if (isChanged) {
 			Commit commit = getCommit(commitMessage, fileStates);
 			commits.put(commit.commitMessage().name(), commit);
-			//head = commit.commitMessage().name();
+			// head = commit.commitMessage().name();
 			res = "Commited succefull: " + commit.commitMessage().message() + " comName: "
 					+ commit.commitMessage().name();
 
@@ -140,8 +140,10 @@ public class GitRepositoryImpl implements GitRepository {
 
 	private Commit getCurrentCommit(String name) { // return commit by name
 		Commit res = null;
-		//res = commits.get(name);
-		if (name == null) {return null;}
+		// res = commits.get(name);
+		if (name == null) {
+			return null;
+		}
 		if (branches.containsKey(name)) {
 			res = commits.get(branches.get(name));
 		} else {
@@ -198,7 +200,7 @@ public class GitRepositoryImpl implements GitRepository {
 
 	@Override
 	public List<String> branches() {
-		return branches.keySet().stream().map(name -> name == head ? name + " *": name).toList();
+		return branches.keySet().stream().map(name -> name == head ? name + " *" : name).toList();
 	}
 
 	@Override
@@ -233,42 +235,36 @@ public class GitRepositoryImpl implements GitRepository {
 			Instant timeOfModified = pair.getValue().timeLastModified();
 
 			restoreOneFile(path, fileData, timeOfModified);
-
-			if (commit.prevCommitName() != null) {
-				commit = getCurrentCommit(commit.prevCommitName());
-			}
 		}
-//		while (commit != null) {
-//			 fileParameters = commit.fileParameters();
-//			for (Entry<Path, FileParameters> pair : fileParameters.entrySet()) {
-//				Path path = pair.getKey();
-//				String[] fileData = pair.getValue().fileData();
-//				Instant timeOfModified = pair.getValue().timeLastModified();
-//				//Map<Path, Instant> currentFiles = currentFiles();
-//				if() {
-//				restoreOneFile(path, fileData, timeOfModified);}
-//
-//				commit = getCurrentCommit(commit.prevCommitName());
-//
-//			
-//
-//			commit = getCurrentCommit(commit.prevCommitName());
-//		}
 
+		while (commit.prevCommitName() != null) {
+			commit = getCurrentCommit(commit.prevCommitName());
+			List<Path> filesPath = null;
+			try {
+				filesPath = Files.walk(Path.of(WORK_DIR), 1).filter(Files::isRegularFile)
+						.filter(filePath -> !regexMatches(filePath.getFileName().toString())).toList();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+			}
+			
+			fileParameters = commit.fileParameters();
+			for (Entry<Path, FileParameters> pair : fileParameters.entrySet()) {
+				Path path = pair.getKey();
+				String[] fileData = pair.getValue().fileData();
+				Instant timeOfModified = pair.getValue().timeLastModified();
+				
+				if(!filesPath.contains(path)) {
+					restoreOneFile(path, fileData, timeOfModified);
+				}
+				
+			}
+
+		}
+		
+		
 	}
 
-//	private Map<Path, Instant> currentFiles() {
-//		HashMap<Path, Instant> res = new HashMap<>();
-//		try {
-//		res = Files.walk(WORK_DIR, 1).filter(Files::isRegularFile)
-//				.filter(filePath -> !regexMatches(filePath.getFileName().toString()))
-//				.map(filePath -> res.put(filePath, fileLastModified(filePath)));
-//	} catch (IOException e) {
-//		// TODO Auto-generated catch block
-//	}
-//	return res;
-//		
-//	}
+	
 
 	private void restoreOneFile(Path path, String[] fileData, Instant timeOfModified) {
 		try {
@@ -323,7 +319,6 @@ public class GitRepositoryImpl implements GitRepository {
 		return String.format("Ignored Expression %s was added", regex);
 	}
 
-	
 	public static GitRepositoryImpl init() {
 		File file = new File(GIT_FILE);
 		GitRepositoryImpl repository = new GitRepositoryImpl();
