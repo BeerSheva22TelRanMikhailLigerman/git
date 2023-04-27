@@ -56,19 +56,19 @@ public class GitRepositoryImpl implements GitRepository {
 	private Commit getCommit(String commitMessage, List<FileState> fileStates) { // create new commit
 		CommitMessage comMessage = new CommitMessage(commitMessage);
 		Instant comTime = Instant.now();
-		Map<Path, FileParameters> comFileParameters = getFileParameters(fileStates);
+		Map<String, FileParameters> comFileParameters = getFileParameters(fileStates);
 		String prevCommit = head == null ? null : getCurrentCommit(head).commitMessage().name();
 
 		return new Commit(comMessage, comTime, comFileParameters, prevCommit);
 	}
 
-	private Map<Path, FileParameters> getFileParameters(List<FileState> fileStates) {
-		Map<Path, FileParameters> res = new HashMap<>();
+	private Map<String, FileParameters> getFileParameters(List<FileState> fileStates) {
+		Map<String, FileParameters> res = new HashMap<>();
 		for (FileState fileState : fileStates) {
 			if (fileState.status() != Status.COMMITED) {
 				FileParameters fileParameters = new FileParameters(getData(fileState.path()),
 						fileLastModified(fileState.path()));
-				res.put(fileState.path(), fileParameters);
+				res.put(fileState.path().toString(), fileParameters);
 			}
 		}
 
@@ -104,7 +104,7 @@ public class GitRepositoryImpl implements GitRepository {
 		Status res = null;
 		if (commit == null) {
 			res = Status.UNTRACKED;
-		} else if (!commit.fileParameters().containsKey(path)) {
+		} else if (!commit.fileParameters().containsKey(path.toString())) {
 			res = getFileStatus(path, commits.get(commit.prevCommitName()));
 		} else {
 			Instant commitDate = commit.commitTime();
@@ -206,7 +206,7 @@ public class GitRepositoryImpl implements GitRepository {
 	@Override
 	public List<Path> commitContent(String commitName) {
 
-		return commits.get(commitName).fileParameters().keySet().stream().toList();
+		return commits.get(commitName).fileParameters().keySet().stream().map(Path::of).toList();
 	}
 
 	@Override
@@ -229,8 +229,8 @@ public class GitRepositoryImpl implements GitRepository {
 	private void restoreFiles(String name) {
 		Commit commit = getCurrentCommit(name);
 		var fileParameters = commit.fileParameters();
-		for (Entry<Path, FileParameters> pair : fileParameters.entrySet()) {
-			Path path = pair.getKey();
+		for (Entry<String, FileParameters> pair : fileParameters.entrySet()) {
+			Path path = Path.of(pair.getKey());
 			String[] fileData = pair.getValue().fileData();
 			Instant timeOfModified = pair.getValue().timeLastModified();
 
@@ -248,8 +248,8 @@ public class GitRepositoryImpl implements GitRepository {
 			}
 			
 			fileParameters = commit.fileParameters();
-			for (Entry<Path, FileParameters> pair : fileParameters.entrySet()) {
-				Path path = pair.getKey();
+			for (Entry<String, FileParameters> pair : fileParameters.entrySet()) {
+				Path path = Path.of(pair.getKey());
 				String[] fileData = pair.getValue().fileData();
 				Instant timeOfModified = pair.getValue().timeLastModified();
 				

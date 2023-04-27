@@ -6,7 +6,7 @@ import java.util.Map;
 
 public record Commit(	CommitMessage commitMessage,
 						Instant commitTime,
-						Map<Path, FileParameters> fileParameters,
+						Map<String, FileParameters> fileParameters,
 						String prevCommitName) implements Serializable{}
 
 
