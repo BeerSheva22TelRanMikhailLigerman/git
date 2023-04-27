@@ -328,9 +328,11 @@ public class GitRepositoryImpl implements GitRepository {
 			} catch (ClassNotFoundException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
+				System.out.println("ClassNotFoundException " + e);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
+				System.out.println("IOException " + e);
 			}
 		}
 		return repository;
