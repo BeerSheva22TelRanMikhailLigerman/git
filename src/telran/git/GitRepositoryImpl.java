@@ -200,7 +200,7 @@ public class GitRepositoryImpl implements GitRepository {
 
 	@Override
 	public List<String> branches() {
-		return branches.keySet().stream().map(name -> name == head ? name + " *" : name).toList();
+		return branches.keySet().stream().map(name -> name.equals(head) ? name + " *" : name).toList();
 	}
 
 	@Override
@@ -294,7 +294,7 @@ public class GitRepositoryImpl implements GitRepository {
 	@Override
 	public String getHead() {
 		// TODO Auto-generated method stub
-		return null;
+		return head == null ? "no commits yet" : head;
 	}
 
 	@Override
